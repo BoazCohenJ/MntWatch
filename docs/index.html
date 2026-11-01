@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MntWatch: hot reload for WSL 2 projects on /mnt/c</title>
+<meta name="description" content="Free, open-source Windows tray app that makes Linux file watchers in WSL 2 (Vite, webpack, nodemon, Python reloaders, inotify) see the files you edit in Windows under /mnt/c. No polling, no moving your code.">
+<link rel="icon" type="image/png" href="icon-64.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="MntWatch: hot reload for WSL 2 projects on /mnt/c">
+<meta property="og:description" content="Linux file watchers in WSL 2 finally see the files you edit in Windows. No polling, no moving your code into the Linux filesystem.">
+<meta property="og:url" content="https://boazcohenj.github.io/MntWatch/">
+<meta property="og:image" content="https://boazcohenj.github.io/MntWatch/social.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #f8f9f8;
+    --surface: #ffffff;
+    --text: #0b0c0c;
+    --muted: #4f5553;
+    --line: #dfe3e1;
+    --accent: #137565;
+    --accent-ink: #ffffff;
+    --good: #0f8a4f;
+    --bad: #c93a3a;
+    --code: #eef1f0;
+    --shadow: 0 1px 2px rgba(11, 12, 12, .05), 0 10px 30px rgba(11, 12, 12, .08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0e0e;
+      --surface: #171a19;
+      --text: #ffffff;
+      --muted: #b9c2bf;
+      --line: #2a2f2d;
+      --accent: #2bb39a;
+      --accent-ink: #04120f;
+      --good: #4cc38a;
+      --bad: #f06b6b;
+      --code: #222725;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .4);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  a { color: var(--accent); }
+  img { max-width: 100%; height: auto; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 16px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); text-decoration: none; }
+  .brand img { width: 30px; height: 30px; }
+  .top nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: 15px; }
+  .top nav a:hover { color: var(--text); }
+
+  .hero { padding: 32px 0 48px; }
+  .hero-text { max-width: 46em; }
+  h1 { font-size: clamp(32px, 4.6vw, 50px); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 18px; }
+  .lede { font-size: 19px; color: var(--muted); margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 10px; font-weight: 600; text-decoration: none; font-size: 16px; border: 1px solid var(--line); color: var(--text); background: var(--surface); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
+  .btn:hover { filter: brightness(1.06); }
+  .meta { margin-top: 16px; color: var(--muted); font-size: 14px; }
+  .shot { display: block; margin-top: 36px; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shadow); overflow: hidden; background: #16181c; }
+  .shot img { display: block; }
+  .caption { font-size: 14px; color: var(--muted); margin-top: 10px; text-align: center; }
+
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(26px, 3.2vw, 34px); line-height: 1.2; letter-spacing: -.01em; margin: 0 0 12px; }
+  .intro { color: var(--muted); max-width: 44em; margin: 0 0 28px; }
+
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  tr:last-child td { border-bottom: 0; }
+
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 18px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+  .two > div { min-width: 0; }
+  ol.steps { padding-left: 22px; margin: 0; } ol.steps li { margin: 0 0 12px; }
+  code { background: var(--code); padding: 2px 6px; border-radius: 5px; font-size: .9em; overflow-wrap: anywhere; }
+  pre { background: var(--code); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 14px; margin: 0; }
+  pre code { background: none; padding: 0; overflow-wrap: normal; }
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 0 0 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { margin: 10px 0 0; color: var(--muted); }
+  ul.limits li, .why li { margin: 0 0 10px; }
+  ul.limits li { color: var(--muted); }
+  ul.limits b { color: var(--text); }
+  .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 0 0 28px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .step .n { display: inline-block; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); text-align: center; font-weight: 700; font-size: 14px; line-height: 26px; margin-right: 6px; }
+  .step p { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+
+  @media (max-width: 860px) {
+    .two, .flow { grid-template-columns: 1fr; gap: 20px; }
+    .features { grid-template-columns: 1fr; }
+    .top nav a:not(.gh) { display: none; }
+  }
+  @media (prefers-reduced-motion: no-preference) { .btn { transition: filter .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#"><img src="icon-64.png" alt="">MntWatch</a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#limits">Limits</a>
+      <a href="#faq">FAQ</a>
+      <a class="gh" href="https://github.com/BoazCohenJ/MntWatch">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div class="hero-text">
+      <h1>Hot reload for WSL 2 projects on <code>/mnt/c</code></h1>
+      <p class="lede">Your code lives on <code>C:\</code>, your dev server runs in WSL 2, and saving a file does nothing. MntWatch is a free Windows tray app that makes Linux file watchers (Vite, webpack, nodemon, Python reloaders, anything on inotify) see the files you edit in Windows. No polling, and no moving your code into the Linux filesystem.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/BoazCohenJ/MntWatch/releases/latest/download/MntWatch.exe">⬇ Download for Windows</a>
+        <a class="btn" href="https://github.com/BoazCohenJ/MntWatch">Source on GitHub</a>
+      </div>
+      <p class="meta">Windows 10 and 11 with WSL 2 · one ~100 KB exe, nothing to install in Linux · open source (MIT) · nothing is uploaded</p>
+    </div>
+    <div class="shot"><img src="screenshot-selftest.png" width="1080" height="478" alt="MntWatch self-test in a terminal: without MntWatch, Linux heard nothing in 2 seconds; with MntWatch, a Windows edit reached a Linux watcher after 32 ms, Linux saw the new size, and a new file was heard after 33 ms"></div>
+    <p class="caption">The built-in self-test: the bug first, then the fix. Real output on an Alpine test distro, user name shortened.</p>
+  </div>
+
+  <section id="how">
+    <h2>Why saving does nothing, and what MntWatch changes</h2>
+    <p class="intro">WSL mounts your drives with a cache mode where the Linux kernel creates a new inode every time a file is looked up. inotify watches are attached to inodes, so the watch sits on one while every change goes through another. No event ever arrives, whether Windows or Linux made the change. It's been <a href="https://github.com/microsoft/WSL/issues/4739">microsoft/WSL#4739</a> since 2019.</p>
+    <div class="flow">
+      <div class="step"><span class="n">1</span><b>One folder, remounted</b><p>Only the folders you add get an overmount with the same owner and permission settings plus one cache bit that keeps one inode per file. Now inotify works for Linux-side changes.</p></div>
+      <div class="step"><span class="n">2</span><b>Windows changes forwarded</b><p>The exe hears each change through Windows' own notifications and tells a small helper in your distro which paths changed.</p></div>
+      <div class="step"><span class="n">3</span><b>A harmless nudge</b><p>The helper writes each file's own mode back to it. Linux refreshes size and time from Windows and raises <code>IN_ATTRIB</code>, which your watcher reports as a change.</p></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>You do this in Windows</th><th>Linux watchers see</th></tr></thead>
+        <tbody>
+          <tr><td><b>Edit and save</b></td><td>A change on that file, typically 10–30 ms later</td></tr>
+          <tr><td><b>Create a file</b></td><td>A change on the file and its folder; Node's <code>fs.watch</code> reports it as new</td></tr>
+          <tr><td><b>Atomic save</b> (temp file + rename)</td><td>A change on the file and its folder</td></tr>
+          <tr><td><b>Delete</b></td><td>A change on the folder (a real delete event can't be faked)</td></tr>
+          <tr><td><b>Create a folder</b></td><td>A change on its parent; tools that rescan pick it up, see the limits</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>What you get</h2>
+    <div class="features">
+      <div class="card"><h3>inotify, not polling</h3><p>Leave <code>CHOKIDAR_USEPOLLING</code> and <code>usePolling</code> off. Changes arrive as real events, with no CPU spent re-reading big trees.</p></div>
+      <div class="card"><h3>Linux writes fire too</h3><p>Inside a MntWatch folder, changes made from Linux (codegen, <code>git checkout</code>) fire events again. Without it, they don't either.</p></div>
+      <div class="card"><h3>Scoped and reversible</h3><p>Only the folders you pick are touched, and each goes back to normal the moment MntWatch stops, even if it's killed.</p></div>
+      <div class="card"><h3>Never starts WSL</h3><p>It waits for your distro to run, attaches, and steps aside on <code>wsl --shutdown</code>. Pick a distro or use your default.</p></div>
+      <div class="card"><h3>Self-test</h3><p><code>MntWatch.exe --self-test</code> reproduces the bug on a temp folder, then shows the fix with timings, using whatever inotify tool your distro has.</p></div>
+      <div class="card"><h3>Small and open</h3><p>One exe plus a ~90-line shell script you can read. No driver, no service, MIT-licensed, built by GitHub Actions.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="two">
+      <div>
+        <h2>Get started</h2>
+        <ol class="steps">
+          <li><a href="https://github.com/BoazCohenJ/MntWatch/releases/latest/download/MntWatch.exe">Download MntWatch.exe</a>, put it somewhere permanent and run it. It lives in the tray.</li>
+          <li>Click the icon → <b>Add folder...</b> and pick your project, for example <code>C:\dev\my-app</code>.</li>
+          <li><b>Restart your dev server once</b>, and <code>cd</code> back into the folder in open shells.</li>
+          <li>Optional: <b>Start with Windows</b>, or <b>Run self-test</b> to see it work.</li>
+        </ol>
+        <p class="meta">The exe isn't code-signed yet, so SmartScreen may say "Windows protected your PC". Click <b>More info → Run anyway</b>, or <a href="https://github.com/BoazCohenJ/MntWatch#build-from-source">build it yourself</a>. Each release has a SHA-256 checksum.</p>
+      </div>
+      <div>
+        <h2>Or from a terminal</h2>
+        <pre><code>MntWatch.exe --run C:\dev\my-app
+MntWatch.exe --run C:\dev\app D:\site --distro Ubuntu --verbose
+MntWatch.exe --self-test</code></pre>
+        <p class="meta">Needs WSL 2 with a current kernel (<code>wsl --update</code>). Any distro: the helper only uses <code>sh</code>, <code>stat</code>, <code>chmod</code>, <code>xargs</code>, <code>awk</code> and <code>mount</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="limits">
+    <h2>Limits, honestly</h2>
+    <ul class="limits">
+      <li><b>Linux sees a new size once MntWatch nudges it</b>, usually 5–30 ms after the write. A Linux program appending to a file in that window can overwrite what Windows just appended, so don't have one program on each side writing the same file at the same moment. Reading is fine: opening a file always gives the current content.</li>
+      <li><b>Deletes arrive as a folder change</b>, not a delete. Tools that rescan on folder changes (Vite, webpack, chokidar, Node's recursive <code>fs.watch</code>) handle it.</li>
+      <li><b>Folders created from Windows</b> are picked up by watchers that rescan. Python watchdog, Rust <code>notify</code>/watchfiles and Go fsnotify only watch a new subfolder after a real <code>IN_CREATE</code>, so they need a restart to see files inside it.</li>
+      <li><b>Go reloaders that ignore Chmod events</b> won't react to Windows edits.</li>
+      <li><b>Linux changes are reported twice</b> (the real event, then the nudge). Watchers that compare timestamps drop the second.</li>
+      <li><b>Not covered:</b> Docker Desktop bind mounts, <code>\\wsl$</code> and network drives.</li>
+      <li><b>Your distro stays running</b> while MntWatch is attached. Pause it from the tray to let WSL shut down when idle.</li>
+    </ul>
+  </section>
+
+  <section id="faq">
+    <h2>FAQ</h2>
+    <details><summary>Why not just turn on polling?</summary><p>Polling works, but it costs CPU on big trees, adds delay, and has to be configured in every tool, often in every project. With MntWatch, the default inotify mode works.</p></details>
+    <details><summary>Why not move the project into the Linux filesystem?</summary><p>That's Microsoft's advice and the fastest setup, so do it if you can. MntWatch is for when the files have to stay on Windows: Windows-only tools, an editor without remote mode, sync folders, backups, or a repo shared with Windows builds.</p></details>
+    <details><summary>It runs a script as root in my distro. Is that safe?</summary><p>Mounting needs root, and <code>wsl.exe --user root</code> needs no password. The script is in the repo and is sent fresh each time. It only mounts and unmounts the folders you added, runs <code>stat</code> and <code>chmod</code> (each file's own mode back, symlinks skipped) on paths Windows reported, and <code>find</code> if Windows reports lost events. It never writes file contents and never deletes anything.</p></details>
+    <details><summary>Does it work with Vite, webpack, nodemon, Next.js, uvicorn?</summary><p>Node's <code>fs.watch</code> (what chokidar, and so Vite, webpack and nodemon, are built on) and Python's watchdog were tested and got every edit, including 20,000-file bursts. The dev servers themselves weren't tested one by one yet. If yours doesn't reload, run the self-test and open an issue with the output.</p></details>
+    <details><summary>What has it been tested on?</summary><p>Windows 11, WSL 2.7.13, kernel 6.18, an Alpine 3.24 distro: edits, new files and folders, atomic saves, deletes, bursts, Linux-side writes, <code>metadata</code> mounts, symlinks, and MntWatch being killed. Not yet: Ubuntu or Debian, and older kernels. Kernels too old to accept the cache flags are refused with a "run wsl --update" message.</p></details>
+  </section>
+
+  <section>
+    <h2>Why this exists</h2>
+    <p class="intro">"Hot reload doesn't work in WSL 2" is one of the oldest open WSL complaints, and the answers are always polling or "move your files".</p>
+    <ul class="why">
+      <li><a href="https://github.com/microsoft/WSL/issues/4739">microsoft/WSL#4739: File changes made by Windows apps on Windows filesystem don't trigger notifications for Linux apps</a>: open since December 2019, 660+ reactions, 180 comments, new reports in 2026</li>
+      <li><a href="https://github.com/microsoft/WSL/issues/4739#issuecomment-4526928527">A 2026 repro</a> showing inotify stays silent for Linux-side and Docker writes too</li>
+      <li>The same problem in other trackers, for example <a href="https://github.com/oven-sh/bun/issues/4335">Bun: Cannot watch files in /mnt on WSL</a> and <a href="https://github.com/zed-industries/zed/issues/51340">Zed: PollWatcher fallback for WSL</a></li>
+    </ul>
+  </section>
+</div>
+<footer>
+  <div class="wrap">MntWatch is free and open source under the MIT license. Not affiliated with Microsoft · <a href="https://github.com/BoazCohenJ/MntWatch">Source on GitHub</a> · <a href="https://github.com/BoazCohenJ/MntWatch/issues">Report a problem</a></div>
+</footer>
+</body>
+</html>
