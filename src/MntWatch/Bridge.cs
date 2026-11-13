@@ -16,8 +16,10 @@ internal sealed class Bridge : IDisposable
 {
     // wsl.exe passes these words to sh unchanged; no quotes, so Windows command-line parsing can't mangle them.
     // The script arrives on stdin, prefixed by its length so the protocol lines after it stay unread.
-    private const string Bootstrap =
-        "read -r n; f=/tmp/mntwatch-helper.$$.sh; dd bs=1 count=$n of=$f 2>/dev/null; exec sh $f";
+    // .NET Framework puts a UTF-8 BOM in front of a redirected stdin when the console code page is 65001 (what a
+    // WSL terminal gives Windows programs), so the length line is reduced to its digits before it is used.
+    internal const string Bootstrap =
+        "read -r n; n=$(printf %s $n|tr -dc 0-9); f=/tmp/mntwatch-helper.$$.sh; dd bs=1 count=$n of=$f 2>/dev/null; exec sh $f";
 
     private readonly Process _process;
     private readonly StreamWriter _stdin;
@@ -56,7 +58,7 @@ internal sealed class Bridge : IDisposable
     /// Runs a shell script as root in the distro with stdin, stdout and stderr redirected. The script is sent
     /// first on stdin; whatever is written to stdin afterwards is the script's own input.
     /// </summary>
-    public static Process StartScript(string distro, string script, out StreamWriter stdin)
+    public static Process StartScript(string distro, string script, out StreamWriter stdin, byte[] stdinPrefix = null)
     {
         var args = new StringBuilder();
         if (!string.IsNullOrEmpty(distro)) args.Append("--distribution ").Append(distro).Append(' ');
@@ -73,6 +75,8 @@ internal sealed class Bridge : IDisposable
         var process = Process.Start(psi) ?? throw new InvalidOperationException("wsl.exe didn't start.");
         process.EnableRaisingEvents = true;
         stdin = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = false };
+        // Tests use this to simulate the BOM a UTF-8 console code page puts in front of everything else.
+        if (stdinPrefix != null) stdin.BaseStream.Write(stdinPrefix, 0, stdinPrefix.Length);
         byte[] bytes = Encoding.UTF8.GetBytes(script.Replace("\r\n", "\n"));
         stdin.Write(bytes.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
         stdin.Flush();
