@@ -1,0 +1,78 @@
+name: Bug report
+description: "A watcher still doesn't see edits, or MntWatch misbehaves"
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time. Even a short report helps, and nothing here is too small.
+  - type: textarea
+    id: what
+    attributes:
+      label: "What happened?"
+      description: "What did you do, what did you expect, and what happened instead?"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to reproduce"
+      placeholder: |
+        1. Add C:\dev\my-app in the tray
+        2. Run npm run dev in WSL
+        3. Save a file in VS Code, nothing reloads
+  - type: input
+    id: version
+    attributes:
+      label: "MntWatch version"
+      description: "The release you downloaded"
+      placeholder: "1.0.1"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: "Windows version"
+      description: "Press Win+R, type `winver`"
+      placeholder: "Windows 11 24H2 (build 26100)"
+  - type: textarea
+    id: wsl-version-output
+    attributes:
+      label: "`wsl --version` output"
+      description: "Run in PowerShell or cmd"
+      render: text
+  - type: input
+    id: distro
+    attributes:
+      label: "Distro"
+      description: "From `MntWatch.exe --distros` or `cat /etc/os-release`"
+      placeholder: "Ubuntu 24.04"
+  - type: input
+    id: tool
+    attributes:
+      label: "Watcher / tool"
+      description: "What should have reloaded, with its version"
+      placeholder: "Vite 7 (npm run dev)"
+    validations:
+      required: true
+  - type: input
+    id: editor
+    attributes:
+      label: "Editor saving the file"
+      placeholder: "VS Code (Windows side, not Remote - WSL)"
+  - type: textarea
+    id: self-test-output
+    attributes:
+      label: "Self-test output"
+      description: "Tray → Run self-test, or `.\\MntWatch.exe --self-test | Out-Host`"
+      render: text
+  - type: textarea
+    id: mntwatch-log
+    attributes:
+      label: "MntWatch log"
+      description: "From `%LOCALAPPDATA%\\MntWatch\\`, next to settings.ini"
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: "Anything else"
+      description: "Is the folder on a local drive (not a network drive or \\\\wsl$)? Is Docker Desktop involved?"
