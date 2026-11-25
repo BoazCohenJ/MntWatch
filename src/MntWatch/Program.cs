@@ -37,8 +37,25 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        using var mutex = new Mutex(true, MutexName, out bool firstInstance);
-        using var showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        Mutex mutex;
+        EventWaitHandle showEvent;
+        bool firstInstance;
+        try
+        {
+            mutex = new Mutex(true, MutexName, out firstInstance);
+            showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // A copy started as administrator owns these, and this one isn't elevated: one MntWatch is enough,
+            // since it bridges both sides of WSL anyway.
+            if (!Has(args, "--tray"))
+                MessageBox.Show("MntWatch is already running as administrator. Use its tray icon.", "MntWatch",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return 0;
+        }
+        using var mutexScope = mutex;
+        using var showScope = showEvent;
         if (!firstInstance)
         {
             // Already running: pop its menu instead of starting a second copy.

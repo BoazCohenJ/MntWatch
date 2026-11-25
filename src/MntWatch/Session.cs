@@ -143,6 +143,7 @@ internal sealed class Session : IDisposable
             return;
         }
         bridge.Acked += OnAck;
+        bridge.NamespacesChanged += n => Say(NamespaceMessage(n, distro, Elevation.IsElevated));
         bridge.Exited += () => _wake.Set();
         _bridge = bridge;
         Say($"Connected to {distro} (kernel {bridge.Kernel}).");
@@ -341,6 +342,18 @@ internal sealed class Session : IDisposable
     }
 
     private void Say(string message) => Log?.Invoke(message);
+
+    /// <summary>What to log when the helper starts or stops bridging WSL's other mount namespace (issue #2).</summary>
+    internal static string NamespaceMessage(int count, string distro, bool elevated)
+    {
+        string other = elevated ? "started without administrator rights" : "started as administrator";
+        if (count < 0)
+            return $"Linux programs {other} run in a separate mount namespace in {distro}, and they won't see MntWatch's folders " +
+                   "because nsenter isn't installed there (it comes with util-linux or busybox). Install it, or run MntWatch and your " +
+                   "terminal at the same level.";
+        if (count == 0) return $"No Linux programs {other} are running in {distro} any more.";
+        return $"Also bridging the folders for Linux programs {other} in {distro} (WSL keeps a separate mount namespace for them).";
+    }
 
     public void Dispose()
     {

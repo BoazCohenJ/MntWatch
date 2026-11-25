@@ -135,6 +135,9 @@ exit 0
             return 2;
         }
         Console.WriteLine($"Distro: {distro} (started if it wasn't running)");
+        Console.WriteLine(Elevation.IsElevated
+            ? "Running as administrator. MntWatch also bridges Linux programs started without administrator rights."
+            : "Running without administrator rights. MntWatch also bridges Linux programs started as administrator.");
 
         string folder = Path.Combine(Path.GetTempPath(), "MntWatch-selftest-" + Guid.NewGuid().ToString("N").Substring(0, 8));
         Directory.CreateDirectory(folder);

@@ -39,6 +39,25 @@ internal static class Native
     }
 }
 
+internal static class Elevation
+{
+    /// <summary>True when MntWatch runs as administrator (elevated), which puts it on WSL's elevated side.</summary>
+    public static readonly bool IsElevated = Check();
+
+    private static bool Check()
+    {
+        try
+        {
+            using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
+            return new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch (System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
+}
+
 internal static class Paths
 {
     /// <summary>

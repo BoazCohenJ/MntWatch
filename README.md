@@ -23,6 +23,7 @@ MntWatch is a small Windows tray app. Point it at a project folder and Linux wat
 - **Edits, new files and atomic saves made in Windows reach Linux watchers** as inotify events, with no polling.
 - **Changes made from Linux fire too.** It turns out inotify on `/mnt/c` is broken for *every* writer, Linux programs included (see below); inside a MntWatch folder, Linux-side writes fire normally again.
 - **Only the folders you pick are touched.** Everything else under `/mnt/c` stays exactly as WSL set it up, and a folder goes back to normal the moment MntWatch stops (even if it's killed).
+- **Works whether your terminal runs as administrator or not.** WSL keeps a separate set of mounts for programs started from an elevated (administrator) window, so a folder mounted on one side is invisible on the other. MntWatch bridges both sides, so it doesn't matter which one MntWatch or your terminal runs on.
 - **Never starts WSL by itself.** It waits until your distro is running, attaches, and detaches again on `wsl --shutdown`.
 - **Built-in self-test.** `MntWatch.exe --self-test` (or *Run self-test* in the tray) first reproduces the bug on a temporary folder, then shows the fix with timings.
 - **One small exe**, about 100 KB, plus a short shell script it runs in your distro. No driver, no service, nothing to install in Linux, nothing sent anywhere. Runs on the .NET Framework 4.8 that ships with Windows 10 and 11. MIT licensed.
@@ -37,7 +38,7 @@ Optional: *Start with Windows* in the same menu, and *WSL distro* if you don't w
 
 The exe isn't code-signed yet, so SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**, or build it yourself (below). Release builds are compiled by [GitHub Actions](.github/workflows/build.yml) from the tagged source and come with a SHA-256 checksum.
 
-**Requirements:** WSL 2 with a current kernel (`wsl --update`; MntWatch tells you if yours is too old to accept the cache flags it needs), and a folder on a local drive that WSL mounts (the usual `/mnt/c`, `/mnt/d`). Any distro works: the helper only needs `sh`, `stat`, `chmod`, `xargs`, `awk` and `mount`.
+**Requirements:** WSL 2 with a current kernel (`wsl --update`; MntWatch tells you if yours is too old to accept the cache flags it needs), and a folder on a local drive that WSL mounts (the usual `/mnt/c`, `/mnt/d`). Any distro works: the helper only needs `sh`, `stat`, `chmod`, `xargs`, `awk` and `mount`, plus `nsenter` to also cover terminals running at the other elevation (see below).
 
 ## How it works
 
@@ -56,7 +57,9 @@ MntWatch does two things for each folder you add:
 | Delete | A change on the folder (there's no way to fake `IN_DELETE`) |
 | New folder | A change on its parent; see the limits below |
 
-The helper ([`helper.sh`](src/MntWatch/helper.sh), about 90 lines) runs as root through `wsl.exe --user root`, because mounting needs it. It's sent over stdin each time MntWatch connects, and it unmounts everything it mounted as soon as MntWatch goes away.
+**Administrator and normal terminals.** WSL gives programs started from an elevated Windows process their own mount namespace in the same distro, separate from the one normal programs use. A mount made in one isn't seen in the other, so without help a dev server in an administrator terminal would watch the plain `/mnt/c` while MntWatch mounted the folder on the normal side ([issue #2](https://github.com/BoazCohenJ/MntWatch/issues/2)). The helper looks for WSL's other namespace every 1.5 seconds (it shows up when the first program starts on that side), mounts the folders there too with `nsenter`, and sends every nudge to both sides. `nsenter` comes with util-linux on Ubuntu and Debian and with busybox on Alpine. If it's missing, MntWatch logs that programs on the other side can't be bridged.
+
+The helper ([`helper.sh`](src/MntWatch/helper.sh), about 150 lines) runs as root through `wsl.exe --user root`, because mounting needs it. It's sent over stdin each time MntWatch connects, and it unmounts everything it mounted as soon as MntWatch goes away.
 
 ## Limits (read these)
 
@@ -67,6 +70,7 @@ The helper ([`helper.sh`](src/MntWatch/helper.sh), about 90 lines) runs as root 
 - **Each change Linux makes is reported twice**: the real event, then one from MntWatch's nudge a few ms later. Watchers that compare timestamps (chokidar) drop the second one. Others may reload twice.
 - **Docker Desktop bind mounts aren't covered.** Containers see the folder through Docker's own distro, not yours.
 - **Not for `\\wsl$` or network drives.** Only local drives that WSL mounts.
+- **A program started on the other side within about 1.5 seconds of that side's first process** (for example a dev server launched by the very command that opens a new administrator terminal) can start before the folder is mounted there. Restart it once and it's fine.
 - **Keeps your distro running** while it's attached, since its helper is a process in it. Pause it from the tray to let WSL shut down when idle.
 
 ## FAQ
@@ -82,6 +86,9 @@ The script is in this repo and is sent fresh each time. It only runs `mount`/`um
 
 **Does it work with Vite / webpack / nodemon / Next.js / uvicorn / Django?**
 Node's `fs.watch` (which chokidar, and so Vite, webpack and nodemon, are built on) and Python's watchdog were tested and get every edit. The specific dev servers weren't tested one by one yet. If yours doesn't reload, run the self-test and open an issue with its output.
+
+**My terminal runs as administrator. Does MntWatch have to run as administrator too?**
+No. Since 1.0.2 MntWatch bridges both sides, so either combination works. Before 1.0.2 both had to run at the same level. Tested on Windows 11 with MntWatch running normally and a watcher in an administrator terminal. The reverse uses the same code, but it hasn't been tested by hand.
 
 **What did you test on?**
 Windows 11, WSL 2.7.13, kernel 6.18.33.2, an Alpine 3.24 distro, Node 24 `fs.watch` (recursive) and Python watchdog: single edits, new files and folders, atomic saves, deletes, 3,000- and 20,000-file bursts (every file arrived), Linux-side writes (no feedback loop), `metadata` mounts, symlinks, and killing MntWatch with Task Manager (folder unmounted). Not yet tested: Ubuntu or Debian distros, and kernels older than 6.18 (older ones that list `cache=mmap` instead of `cache=0x…` are refused with a "run wsl --update" message).

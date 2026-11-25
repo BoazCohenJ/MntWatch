@@ -28,7 +28,12 @@ internal sealed class Bridge : IDisposable
     private readonly Queue<string> _replies = new();
     private readonly List<DrvfsMount> _drvfs = new();
     private readonly ManualResetEventSlim _ready = new(false);
+    private Timer _scanTimer;
     private long _seq;
+
+    // How often the helper looks for WSL's other mount namespace (elevated or not), which appears when the first
+    // program on that side starts. Short, so a terminal opened there is bridged before a watcher starts in it.
+    private const int ScanMs = 1500;
 
     public string Distro { get; }
     public string Kernel { get; private set; }
@@ -38,6 +43,12 @@ internal sealed class Bridge : IDisposable
     /// <summary>Raised on the reader thread for every ACK: sequence number and how many paths were nudged.</summary>
     public event Action<long, int> Acked;
     public event Action Exited;
+
+    /// <summary>
+    /// Raised when the number of other WSL mount namespaces the helper bridges changes (issue #2): a count, or -1
+    /// when one exists but nsenter isn't installed, so folders there can't be bridged.
+    /// </summary>
+    public event Action<int> NamespacesChanged;
 
     private Bridge(string distro, Process process, StreamWriter stdin)
     {
@@ -106,6 +117,7 @@ internal sealed class Bridge : IDisposable
             bridge.Dispose();
             throw new InvalidOperationException(why.Length > 0 ? why : "The helper didn't answer from WSL in time.");
         }
+        bridge._scanTimer = new Timer(_ => bridge.Send("SCAN"), null, 0, ScanMs);
         return bridge;
     }
 
@@ -127,6 +139,10 @@ internal sealed class Bridge : IDisposable
                         break;
                     case "READY":
                         _ready.Set();
+                        break;
+                    case "NS" when f.Length >= 2:
+                        if (f[1] == "nonsenter") NamespacesChanged?.Invoke(-1);
+                        else if (int.TryParse(f[1], out int ns)) NamespacesChanged?.Invoke(ns);
                         break;
                     case "ACK" when f.Length >= 3:
                         if (long.TryParse(f[1], out long seq) && int.TryParse(f[2], out int count)) Acked?.Invoke(seq, count);
@@ -237,6 +253,7 @@ internal sealed class Bridge : IDisposable
 
     public void Dispose()
     {
+        _scanTimer?.Dispose();
         // Closing stdin makes the helper unmount everything and exit.
         lock (_writeLock)
         {

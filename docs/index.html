@@ -161,9 +161,10 @@
       <div class="card"><h3>inotify, not polling</h3><p>Leave <code>CHOKIDAR_USEPOLLING</code> and <code>usePolling</code> off. Changes arrive as real events, with no CPU spent re-reading big trees.</p></div>
       <div class="card"><h3>Linux writes fire too</h3><p>Inside a MntWatch folder, changes made from Linux (codegen, <code>git checkout</code>) fire events again. Without it, they don't either.</p></div>
       <div class="card"><h3>Scoped and reversible</h3><p>Only the folders you pick are touched, and each goes back to normal the moment MntWatch stops, even if it's killed.</p></div>
+      <div class="card"><h3>Admin or not</h3><p>WSL keeps separate mounts for programs started as administrator. MntWatch covers both sides, so your terminal and MntWatch don't have to match.</p></div>
       <div class="card"><h3>Never starts WSL</h3><p>It waits for your distro to run, attaches, and steps aside on <code>wsl --shutdown</code>. Pick a distro or use your default.</p></div>
       <div class="card"><h3>Self-test</h3><p><code>MntWatch.exe --self-test</code> reproduces the bug on a temp folder, then shows the fix with timings, using whatever inotify tool your distro has.</p></div>
-      <div class="card"><h3>Small and open</h3><p>One exe plus a ~90-line shell script you can read. No driver, no service, MIT-licensed, built by GitHub Actions.</p></div>
+      <div class="card"><h3>Small and open</h3><p>One exe plus a ~150-line shell script you can read. No driver, no service, MIT-licensed, built by GitHub Actions.</p></div>
     </div>
   </section>
 
@@ -208,6 +209,7 @@ MntWatch.exe --self-test</code></pre>
     <details><summary>Why not move the project into the Linux filesystem?</summary><p>That's Microsoft's advice and the fastest setup, so do it if you can. MntWatch is for when the files have to stay on Windows: Windows-only tools, an editor without remote mode, sync folders, backups, or a repo shared with Windows builds.</p></details>
     <details><summary>It runs a script as root in my distro. Is that safe?</summary><p>Mounting needs root, and <code>wsl.exe --user root</code> needs no password. The script is in the repo and is sent fresh each time. It only mounts and unmounts the folders you added, runs <code>stat</code> and <code>chmod</code> (each file's own mode back, symlinks skipped) on paths Windows reported, and <code>find</code> if Windows reports lost events. It never writes file contents and never deletes anything.</p></details>
     <details><summary>Does it work with Vite, webpack, nodemon, Next.js, uvicorn?</summary><p>Node's <code>fs.watch</code> (what chokidar, and so Vite, webpack and nodemon, are built on) and Python's watchdog were tested and got every edit, including 20,000-file bursts. The dev servers themselves weren't tested one by one yet. If yours doesn't reload, run the self-test and open an issue with the output.</p></details>
+    <details><summary>My terminal runs as administrator. Does MntWatch need to as well?</summary><p>No. WSL gives elevated programs their own mount namespace, and since 1.0.2 MntWatch mounts and nudges the folders on both sides (using <code>nsenter</code>, which comes with util-linux or busybox). Before 1.0.2 both had to run at the same level.</p></details>
     <details><summary>What has it been tested on?</summary><p>Windows 11, WSL 2.7.13, kernel 6.18, an Alpine 3.24 distro: edits, new files and folders, atomic saves, deletes, bursts, Linux-side writes, <code>metadata</code> mounts, symlinks, and MntWatch being killed. Not yet: Ubuntu or Debian, and older kernels. Kernels too old to accept the cache flags are refused with a "run wsl --update" message.</p></details>
   </section>
 
